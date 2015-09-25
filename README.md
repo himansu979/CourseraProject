@@ -1,4 +1,7 @@
 # CourseraProject
 coursera practical Machine Learning project
-course project
+
+course project by Himansu Sahoo
+
+
 
