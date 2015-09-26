@@ -1,0 +1,259 @@
+---
+output: html_document
+---
+# Course Project - Coursera Practical Machine Learning.
+
+Author: Himansu Sahoo
+
+Date : September 25, 2015
+
+### Project Description
+
+In this project, we will use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+The dataset is Weight Lifting Exercise Dataset.
+
+The training data for this project are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. 
+
+### Get training and testing dataset
+```{r}
+rawtrain_data <- read.csv("pml-training.csv", na.strings=c("NA", "NAN", ""))
+rawtest_data <- read.csv("pml-testing.csv", na.strings=c("NA", "NAN", ""))
+dim(rawtrain_data)
+dim(rawtest_data)
+```
+
+### Variable Selection
+
+The training dataset contains 19,622 observations and 160 variables. The last variable "classe" is the target variable for our model.
+Most of the columns have lot sof missing values (NA), we will remove those columns while building our model.
+
+```{r}
+train_noNA <- rawtrain_data[ , colSums(is.na(rawtrain_data)) == 0]
+test_noNA <- rawtest_data[ , colSums(is.na(rawtest_data)) == 0]
+dim(train_noNA)
+dim(test_noNA)
+```
+
+The dataset has now 60 variables.
+We will also remove the variables like X, user\_name, timestamp, window which can't be used as predictors.
+
+```{r}
+remove_cols <- grepl("X|user_name|timestamp|window", colnames(train_noNA))
+train_data <- train_noNA[ , !remove_cols]
+test_data <- test_noNA[ , !remove_cols]
+#dim(train_data)
+#dim(test_data)
+```
+
+After variable selection, we are now left with 53 variables in the dataset.
+There are both numeric and integer variables. The last variable "classe" is the target variable. The is a factor variable with 5 levels.
+
+### Explore the training dataset
+```{r}
+dim(train_data)
+names(train_data) # names of the variables
+```
+
+### Explore the Target (dependent) variable
+
+```{r fig.width=3.5, fig.height=3}
+class(train_data$classe) # whether numeric or factor
+str(train_data$classe) # full description
+levels(train_data$classe) # levels of the factor variable
+table(train_data$classe) # statistics of each level
+prop.table(table(train_data$classe))
+barplot(table(train_data$classe))
+```
+
+### Removing zero Covariates
+```{r}
+library(caret)
+variability <- nearZeroVar(train_data, saveMetrics=TRUE)
+#variability
+```
+
+nzv value is FALSE for all of the predictors. So, we are not going to remove any variables from the modelling.
+
+### Creat Training datasets using caret package
+
+The training dataset is large (19622 observations) and testing dataset is small (20 observations). Instead of performing algorithm on the entire training dataset, we divide the dataset into four equal parts.
+
+```{r}
+library(caret)
+# 25% to train_data1 and rest to remain_data1
+set.seed(110)
+inTrain1 <- createDataPartition(train_data$classe, p=0.25, list=FALSE)
+train_data1 <- train_data[inTrain1,]
+remain_data1 <- train_data[-inTrain1,]
+
+# then use the remain_data1 to divide 33% to train_data2 and rest to remain_data2
+set.seed(110)
+inTrain2 <- createDataPartition(remain_data1$classe, p=0.33, list=FALSE)
+train_data2 <- remain_data1[inTrain2,]
+remain_data2 <- remain_data1[-inTrain2,]
+
+# then use the remain_data2 to divide 50% to train_data3 and rest to train_data4
+set.seed(110)
+inTrain3 <- createDataPartition(remain_data2$classe, p=0.50, list=FALSE)
+train_data3 <- remain_data2[inTrain3,]
+train_data4 <- remain_data2[-inTrain3,]
+```
+
+### Explore the Training datasets
+```{r}
+cat("train_data1 : dimension :  ", dim(train_data1) , "\n")
+#cat("train_data2 : dimension :  ", dim(train_data2) , "\n")
+#cat("train_data3 : dimension :  ", dim(train_data3) , "\n")
+#cat("train_data4 : dimension :  ", dim(train_data4) , "\n")
+```
+
+### Create training and testing datasets
+Divide each of the training samples into small training sample (60%) and testing (40%) datasets.
+
+```{r}
+set.seed(110)
+train1 <- createDataPartition(train_data1$classe, p=0.60, list=FALSE)
+train_small_data1 <- train_data1[train1,]
+test_small_data1 <- train_data1[-train1,]
+
+set.seed(110)
+train2 <- createDataPartition(train_data2$classe, p=0.60, list=FALSE)
+train_small_data2 <- train_data2[train2,]
+test_small_data2 <- train_data2[-train2,]
+
+set.seed(110)
+train3 <- createDataPartition(train_data3$classe, p=0.60, list=FALSE)
+train_small_data3 <- train_data3[train3,]
+test_small_data3 <- train_data3[-train3,]
+
+set.seed(110)
+train4 <- createDataPartition(train_data4$classe, p=0.60, list=FALSE)
+train_small_data4 <- train_data4[train4,]
+test_small_data4 <- train_data4[-train4,]
+```
+
+### Explore the small training and testing datasets
+```{r}
+cat("train_small_data1 : dimension :  ", dim(train_small_data1) , "\n")
+#cat("train_small_data2 : dimension :  ", dim(train_small_data2) , "\n")
+#cat("train_small_data3 : dimension :  ", dim(train_small_data3) , "\n")
+#cat("train_small_data4 : dimension :  ", dim(train_small_data4) , "\n")
+
+cat("test_small_data1 : dimension :  ", dim(test_small_data1) , "\n")
+#cat("test_small_data2 : dimension :  ", dim(test_small_data2) , "\n")
+#cat("test_small_data3 : dimension :  ", dim(test_small_data3) , "\n")
+#cat("test_small_data4 : dimension :  ", dim(test_small_data4) , "\n")
+```
+
+### Random Forest Algorithm
+
+Since we have many possible predictors, we decided to use random forest algorithm with all 52 predictors. First we will build the model using training dataset and will apply to testing dataset.
+
+```{r}
+# RF model on training dataset1
+set.seed(101)
+rf_model1 <- train(classe~., method="rf", data=train_small_data1)
+print(rf_model1, digits=3)
+# check the performance on testing dataset1
+rf_pred1 <- predict(rf_model1, newdata=test_small_data1)
+print(confusionMatrix(rf_pred1, test_small_data1$classe))
+```
+
+```{r}
+# imapact of cross-validation
+set.seed(101)
+rf_cv_model1 <- train(classe~., method="rf", trControl=trainControl(method="cv", number=4), data=train_small_data1)
+print(rf_cv_model1, digits=3)
+# check the performance on testing dataset1
+rf_cv_pred1 <- predict(rf_cv_model1, newdata=test_small_data1)
+print(confusionMatrix(rf_cv_pred1, test_small_data1$classe))
+```
+
+```{r}
+# imapact of cross-validation and pre-processing
+set.seed(101)
+rf_cv_pp_model1 <- train(classe~., method="rf", preProcess=c("center", "scale"), trControl=trainControl(method="cv", number=4), data=train_small_data1)
+print(rf_cv_pp_model1, digits=3)
+# check the performance on testing dataset1
+rf_cv_pp_pred1 <- predict(rf_cv_pp_model1, newdata=test_small_data1)
+print(confusionMatrix(rf_cv_pp_pred1, test_small_data1$classe))
+```
+
+### Summary from using RF model with dataset1
+
+The accuracy of Random Forest model on dataset1 : 94.8% on training and 96% on testing
+
+After cross-validation, accuracy is : 95.1% on training and 95.9% on testing
+
+After both cross-validation and preprocessing, accuracy is : 95.1% on training and 96% on testing
+
+We noticed using both cross-validation and preprocessing, accuracy is increased in training dataset and testing set remains almost same. we decided to apply both to the remaining datasets.
+
+
+```{r}
+# imapact of cross-validation and pre-processing on dataset2
+set.seed(101)
+rf_cv_pp_model2 <- train(classe~., method="rf", preProcess=c("center", "scale"), trControl=trainControl(method="cv", number=4), data=train_small_data2)
+print(rf_cv_pp_model2, digits=3)
+# check the performance on testing dataset2
+rf_cv_pp_pred2 <- predict(rf_cv_pp_model2, newdata=test_small_data2)
+print(confusionMatrix(rf_cv_pp_pred2, test_small_data2$classe))
+```
+
+```{r}
+# imapact of cross-validation and pre-processing on dataset3
+set.seed(101)
+rf_cv_pp_model3 <- train(classe~., method="rf", preProcess=c("center", "scale"), trControl=trainControl(method="cv", number=4), data=train_small_data3)
+print(rf_cv_pp_model3, digits=3)
+# check the performance on testing dataset3
+rf_cv_pp_pred3 <- predict(rf_cv_pp_model3, newdata=test_small_data3)
+print(confusionMatrix(rf_cv_pp_pred3, test_small_data3$classe))
+```
+
+```{r}
+# imapact of cross-validation and pre-processing on dataset4
+set.seed(101)
+rf_cv_pp_model4 <- train(classe~., method="rf", preProcess=c("center", "scale"), trControl=trainControl(method="cv", number=4), data=train_small_data4)
+print(rf_cv_pp_model4, digits=3)
+# check the performance on testing dataset4
+rf_cv_pp_pred4 <- predict(rf_cv_pp_model4, newdata=test_small_data4)
+print(confusionMatrix(rf_cv_pp_pred4, test_small_data4$classe))
+```
+
+### Apply RF model in testing dataset
+
+```{r}
+print(predict(rf_model1, newdata=test_data))
+print(predict(rf_cv_model1, newdata=test_data))
+print(predict(rf_cv_pp_model1, newdata=test_data))
+print(predict(rf_cv_pp_model2, newdata=test_data))
+print(predict(rf_cv_pp_model3, newdata=test_data))
+print(predict(rf_cv_pp_model4, newdata=test_data))
+```
+
+### Out-of-sample Error
+
+Accuracy on dataset 1 : 95.1% on training and 95.97% on testing
+Accuracy on dataset 2 : 95.0% on training and 96.39% on testing
+Accuracy on dataset 3 : 94.6% on training and 95.69% on testing
+Accuracy on dataset 4 : 95.3% on training and 96.19% on testing
+
+The error rate after running the prediction function on the 4 testing sets.
+
+1) testing set 1 : 1-0.9597 = 0.0403
+2) testing set 2 : 1-0.9639 = 0.0361
+3) testing set 3 : 1-0.9569 = 0.0431
+4) testing set 4 : 1-0.9619 = 0.0381
+
+Since each testing set is roughly equal size, we take avarage of the sample errors : 0.0394
+
+
+
+
